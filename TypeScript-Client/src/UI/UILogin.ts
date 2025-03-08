@@ -9,6 +9,8 @@ import GameCanvas from "../GameCanvas";
 
 interface UILoginInterface {
   frameImg: any;
+  channelBackground: any;
+  channelSelected: boolean;
   inputUsn: MapleInput | null;
   inputPwd: MapleInput | null;
   newCharStats: number[];
@@ -37,6 +39,7 @@ UILogin.initialize = async function (canvas: GameCanvas) {
   const uiLogin: any = await WZManager.get("UI.wz/Login.img");
 
   this.frameImg = uiLogin.Common.frame.nGetImage();
+  this.channelBackground = uiLogin.WorldSelect.chBackgrn.nGetImage();
 
   this.inputUsn = new MapleInput(canvas, {
     x: 442,
@@ -70,12 +73,49 @@ UILogin.initialize = async function (canvas: GameCanvas) {
     x: -168,
     y: -800,
     img: uiLogin.WorldSelect.BtWorld[0].nChildren,
+    //img: uiLogin.WorldSelect.channel[0].nChildren,
     onClick: () => {
       console.log("Scania selected!");
+      this.channelSelected = true;
     },
   });
 
   ClickManager.addButton(scaniaSign);
+
+  const viewRecomended = new MapleStanceButton(canvas, {
+    x: -168,
+    y: -800,
+    img: uiLogin.WorldSelect.BtViewChoice.nChildren,
+    onClick: () => {
+      console.log("View recomended selected!");
+    },
+  });
+
+  //ClickManager.addButton(viewRecomended);
+
+  const ViewAllWorlds = new MapleStanceButton(canvas, {
+    x: -168,
+    y: -800,
+    img: uiLogin.WorldSelect.BtViewAll.nChildren,
+    onClick: () => {
+      console.log("View all worlds selected!");
+    },
+  });
+
+  //ClickManager.addButton(ViewAllWorlds);
+
+  const enterChannelSign = new MapleStanceButton(canvas, {
+    x: -168,
+    y: -800,
+    img: uiLogin.WorldSelect.BtGoworld.nChildren,
+    onClick: () => {
+      console.log("Channel entered");
+    },
+  });
+
+  //ClickManager.addButton(enterChannelSign);
+
+  console.log(uiLogin);
 
   // TODO: for now only scania is enabled
   // Can enable all the worlds after the rest of the logic is working
@@ -180,11 +220,12 @@ UILogin.doRender = function (canvas, camera, lag, msPerTick, tdelta) {
   });
 
   // If at channel selection screen, render the world select sign
-  if (Math.abs(camera.x - this.cameraTargetX) < 1 && 
-      Math.abs(camera.y - this.cameraTargetY) < 1 &&
-      this.worldSelectSign) {
-    
-    this.worldSelectSign.render(canvas, camera, lag, msPerTick, tdelta);
+  if(this.channelSelected){
+    canvas.drawImage({
+      img: this.channelBackground,
+      dx: 190,
+      dy: 220,
+    });
   }
 
   UICommon.doRender(canvas, camera, lag, msPerTick, tdelta);
