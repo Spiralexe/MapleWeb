@@ -526,8 +526,16 @@ MapleMap.handleClick = function (
       // Check if this is a taxi NPC
       if (npc.isTaxi) {
         console.log("This is a taxi NPC!");
-        // Show taxi dialog instead of regular dialog
-        npc.showTaxiDialog();
+        // Make sure TaxiUI is loaded before showing dialog
+        import('./UI/TaxiUI').then(() => {
+          // Show taxi dialog instead of regular dialog
+          npc.showTaxiDialog();
+        }).catch(err => {
+          console.error("Error loading TaxiUI:", err);
+          // Fallback to regular dialog if TaxiUI fails to load
+          npc.showDialog = true;
+          npc.lastDialogTime = npc.dialogTimer;
+        });
       } else {
         // Show regular dialog for clicked NPC
         npc.showDialog = true;

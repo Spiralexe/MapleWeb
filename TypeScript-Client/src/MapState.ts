@@ -187,7 +187,8 @@ MapStateInstance.doUpdate = function (
     // Update TaxiUI
     if (TaxiUI.isVisible) {
       TaxiUI.update(msPerTick);
-      return; // Skip character movement while taxi dialog is open
+      // Don't return early, continue updating the game state
+      // This allows the TaxiUI to handle clicks while game runs in background
     }
 
     if (this.isTouchControllsEnabled) {
@@ -327,7 +328,10 @@ MapStateInstance.doRender = function (
     
     // Draw TaxiUI on top of everything else
     if (TaxiUI.isVisible) {
+      console.log("MapState is rendering TaxiUI");
       TaxiUI.render(canvas, camera);
+    } else {
+      // console.log("TaxiUI is not visible in MapState render");
     }
   }
 };
