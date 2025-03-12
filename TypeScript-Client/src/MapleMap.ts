@@ -498,9 +498,16 @@ MapleMap.handleClick = function (
         }
       });
       
-      // Show dialog for clicked NPC
-      npc.showDialog = true;
-      npc.lastDialogTime = npc.dialogTimer; // Update timing to keep dialog visible
+      // Check if this is a taxi NPC
+      if (npc.isTaxi) {
+        console.log("This is a taxi NPC!");
+        // Show taxi dialog instead of regular dialog
+        npc.showTaxiDialog();
+      } else {
+        // Show regular dialog for clicked NPC
+        npc.showDialog = true;
+        npc.lastDialogTime = npc.dialogTimer; // Update timing to keep dialog visible
+      }
     }
   });
 };
