@@ -4,7 +4,7 @@ import GameLoop from "./Gameloop";
 import Timer from "./Timer";
 import WZManager from "./wz-utils/WZManager";
 import Camera from "./Camera";
-// import MySocket from "./mysocket";
+import MySocket from "./mysocket";
 import StateManager from "./StateManager";
 import LoginState from "./LoginState";
 import MyCharacter from "./MyCharacter";
@@ -30,13 +30,13 @@ const startGame = async () => {
   WZManager.initialize();
   Camera.initialize();
   Timer.initialize();
-  // await MySocket.initialize();
   // maybe comment this out
   // await StateManager.setState(LoginState);
   await StateManager.setLoginState(LoginState, canvas);
 
-  // when the next line commant it will be home screen
+  // when the next line comment it will be home screen
   await LoginState.enterGame();
+  await MySocket.initialize();
   let Loop = new GameLoop(canvas);
   Loop.gameLoop();
 };
