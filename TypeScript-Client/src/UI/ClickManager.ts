@@ -25,12 +25,16 @@ export interface ClickManagerInterface {
   addButton: (button: any) => void;
   removeButton: (button: any) => void;
   clearButton: () => void;
+  isDraggingItem: boolean; // Flag to track item dragging
 
   chosenMenu: DragableMenu | null;
   lastClickedMenuPosition: { x: number; y: number } | null;
 }
 
 const ClickManager = {} as ClickManagerInterface;
+
+// Add a flag to indicate when an item is being dragged
+ClickManager.isDraggingItem = false;
 
 ClickManager.initialize = function (canvas: GameCanvas) {
   this.clicked = false;
@@ -42,6 +46,7 @@ ClickManager.initialize = function (canvas: GameCanvas) {
   };
   this.dragableMenus = [];
   this.GameCanvas = canvas;
+  this.isDraggingItem = false;
 };
 
 ClickManager.doUpdate = function (msPerTick: number, camera: CameraInterface) {
@@ -179,7 +184,8 @@ ClickManager.doUpdate = function (msPerTick: number, camera: CameraInterface) {
               if (
                 clickedOnThisUpdate &&
                 clickedOnLastUpdate &&
-                this.lastClickedMenuPosition
+                this.lastClickedMenuPosition &&
+                !this.isDraggingItem // Don't move menu when dragging an item
               ) {
                 // move menu to current mouse position - original mouse position
                 const deltaX = mousePoint.x - this.lastClickedMenuPosition.x;
