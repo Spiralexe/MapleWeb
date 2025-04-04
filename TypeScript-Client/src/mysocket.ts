@@ -516,24 +516,26 @@ class MySocket {
         // Set initial position
         character.pos = new Physics(playerData.x, playerData.y);
 
-        
-        
-        // Override physics update to make movement smoother
-        const originalUpdate = character.pos.update;
+        // Override physics update for other players to use simple interpolation
         character.pos.update = function(msPerTick: number) {
-          // Simple physics that prioritizes visual smoothness over accuracy
+          // Simple interpolation without physics
+          const delta = msPerTick / 1000;
           
-          // Apply position changes based on velocity
-          this.x += this.vx * (msPerTick / 1000);
-          this.y += this.vy * (msPerTick / 1000);
-          
-          // Gradually reduce velocity (damping)
-          this.vx *= 0.9;
-          this.vy *= 0.9;
-          
-          // Stop completely if velocity is very small
-          if (Math.abs(this.vx) < 0.1) this.vx = 0;
-          if (Math.abs(this.vy) < 0.1) this.vy = 0;
+          // If we have a target position, interpolate towards it
+          if (this.targetX !== undefined && this.targetY !== undefined) {
+            const dx = this.targetX - this.x;
+            const dy = this.targetY - this.y;
+            
+            // Move a fraction of the distance each frame
+            this.x += dx * 0.2;
+            this.y += dy * 0.2;
+            
+            // If we're very close to the target, snap to it
+            if (Math.abs(dx) < 0.1 && Math.abs(dy) < 0.1) {
+              this.x = this.targetX;
+              this.y = this.targetY;
+            }
+          }
         };
         
         // Load assets for this character
@@ -561,53 +563,6 @@ class MySocket {
       } catch (error) {
         console.error(`Failed to create character for player ${playerId}:`, error);
       }
-    } else {
-      // Update existing player
-      try {
-        const character = this.otherPlayers.get(playerId)!;
-        
-        // Calculate movement vector for smooth interpolation
-        const dx = playerData.x - character.pos.x;
-        const dy = playerData.y - character.pos.y;
-        
-        // For large position changes (teleporting), update directly
-        const isLargeMovement = Math.abs(dx) > 100 || Math.abs(dy) > 100;
-        
-        if (isLargeMovement) {
-          character.pos.x = playerData.x;
-          character.pos.y = playerData.y;
-          character.pos.vx = 0;
-          character.pos.vy = 0;
-        } else {
-          // Set velocity for smooth movement (reach target in about 3-5 frames)
-          character.pos.vx = dx * 0.3;
-          character.pos.vy = dy * 0.3;
-          
-          // Cap maximum velocity
-          const maxSpeed = 300;
-          character.pos.vx = Math.max(Math.min(character.pos.vx, maxSpeed), -maxSpeed);
-          character.pos.vy = Math.max(Math.min(character.pos.vy, maxSpeed), -maxSpeed);
-        }
-        
-        // Update appearance and animation state
-        if (playerData.stance) character.stance = playerData.stance;
-        if (playerData.frame !== undefined) character.frame = playerData.frame;
-        if (playerData.flipped !== undefined) character.flipped = playerData.flipped;
-        
-        // Handle attacking state
-        if (playerData.attacking && !character.isInAttack) {
-          // Trigger attack animation
-          if (character.attack && typeof character.attack === 'function') {
-            try {
-              character.attack();
-            } catch (error) {
-              console.error("Error animating attack:", error);
-            }
-          }
-        }
-      } catch (error) {
-        console.error(`Failed to update character for player ${playerId}:`, error);
-      }
     }
   }
   
@@ -628,26 +583,14 @@ class MySocket {
     if (this.otherPlayers.has(playerId)) {
       const character = this.otherPlayers.get(playerId)!;
       
-      // Update position with smoother interpolation
+      // Update position with simple interpolation
       if (playerData.x !== undefined && playerData.y !== undefined) {
-        // Calculate position difference
-        const dx = playerData.x - character.pos.x;
-        const dy = playerData.y - character.pos.y;
-        
-        // Handle large position changes (teleporting)
-        if (Math.abs(dx) > 100 || Math.abs(dy) > 100) {
-          character.pos.x = playerData.x;
-          character.pos.y = playerData.y;
-          character.pos.vx = 0;
-          character.pos.vy = 0;
-        } else {
-          // Set velocity for smoother movement
-          character.pos.vx = dx * 0.3;
-          character.pos.vy = dy * 0.3;
-        }
+        // Set target position for interpolation
+        character.pos.targetX = playerData.x;
+        character.pos.targetY = playerData.y;
       }
       
-      // Important: Properly update stance and animation state
+      // Update stance and animation state
       if (playerData.stance) {
         character.setStance(playerData.stance, playerData.frame || 0);
       }
@@ -655,19 +598,6 @@ class MySocket {
       // Update flipped state (facing direction)
       if (playerData.flipped !== undefined) {
         character.flipped = playerData.flipped;
-      }
-      
-      // Handle foothold (ground) state
-      // This is crucial for fixing the "stuck in air" issue
-      if (playerData.onGround) {
-        // Set a foothold if player is on ground
-        if (!character.pos.fh) {
-          // Create a basic foothold if needed
-          character.pos.fh = { id: 1, x1: 0, x2: 1000, y1: character.pos.y, y2: character.pos.y };
-        }
-      } else {
-        // Clear foothold if player is in air
-        character.pos.fh = null;
       }
     }
   }

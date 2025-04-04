@@ -21,6 +21,9 @@ const players = new Map();
 // Store monster state
 const monsters = new Map();
 
+// Store map information
+const maps = new Map();
+
 // Message handling
 wss.on('connection', (ws) => {
   // Set maximum payload size and add connection timeout
@@ -95,7 +98,7 @@ wss.on('connection', (ws) => {
   
   // Handle errors
   ws.on('error', (error) => {
-    console.error(`WebSocket error for player ${playerId}:`, error);
+    console.error('WebSocket connection error:', error);
     
     // Clean up on error
     const player = players.get(playerId);
@@ -187,71 +190,75 @@ function handlePlayerUpdate(playerId, updateData) {
   const player = players.get(playerId);
   if (!player || !player.info) return;
   
-  // Ensure mapId is always a number
-  if (updateData.mapId !== undefined) {
-    updateData.mapId = Number(updateData.mapId);
-  } else {
-    updateData.mapId = Number(player.mapId || player.info.mapId);
-  }
-  
-  // Update player info
-  const updatedInfo = { ...player.info };
-  
-  // Update position
-  if (updateData.x !== undefined) updatedInfo.x = updateData.x;
-  if (updateData.y !== undefined) updatedInfo.y = updateData.y;
-  
-  // Update other properties
-  if (updateData.stance) updatedInfo.stance = updateData.stance;
-  if (updateData.frame !== undefined) updatedInfo.frame = updateData.frame;
-  if (updateData.flipped !== undefined) updatedInfo.flipped = updateData.flipped;
-  if (updateData.attacking !== undefined) updatedInfo.attacking = updateData.attacking;
-  
-  // Check if player changed maps
-  const currentMapId = Number(player.mapId);
-  const newMapId = updateData.mapId;
-  
-  if (currentMapId !== newMapId) {
-    console.log(`Player ${playerId} changed maps: ${currentMapId} -> ${newMapId}`);
-    
-    // Notify players in old map that this player left
-    broadcastToMap(currentMapId, {
-      type: 'player_left',
-      id: playerId
-    }, playerId);
-    
-    // Update map ID
-    player.mapId = newMapId;
-    updatedInfo.mapId = newMapId;
-    
-    // Notify players in new map about this player
-    broadcastToMap(newMapId, {
-      type: 'player_joined',
-      player: updatedInfo
-    }, playerId);
-    
-    // Send updated player list to this player
-    sendPlayerList(playerId);
-  } else {
-    // Rate limit broadcasts for position updates
-    const now = Date.now();
-    const timeSinceLastBroadcast = now - (player.lastBroadcast || 0);
-    const broadcastInterval = 100; // milliseconds
-    
-    if (timeSinceLastBroadcast >= broadcastInterval) {
-      // Broadcast update to players in same map
-      broadcastToMap(player.mapId, {
-        type: 'player_update',
-        player: updatedInfo
-      }, playerId);
-      
-      player.lastBroadcast = now;
+  try {
+    // Ensure mapId is always a number
+    if (updateData.mapId !== undefined) {
+      updateData.mapId = Number(updateData.mapId);
+    } else {
+      updateData.mapId = Number(player.mapId || player.info.mapId);
     }
+    
+    // Update player info
+    const updatedInfo = { ...player.info };
+    
+    // Update position
+    if (updateData.x !== undefined) updatedInfo.x = updateData.x;
+    if (updateData.y !== undefined) updatedInfo.y = updateData.y;
+    
+    // Update other properties
+    if (updateData.stance) updatedInfo.stance = updateData.stance;
+    if (updateData.frame !== undefined) updatedInfo.frame = updateData.frame;
+    if (updateData.flipped !== undefined) updatedInfo.flipped = updateData.flipped;
+    if (updateData.attacking !== undefined) updatedInfo.attacking = updateData.attacking;
+    
+    // Get current foothold information
+    const currentMap = maps.get(updatedInfo.mapId);
+    if (currentMap) {
+      const foothold = currentMap.getFootholdAt(updatedInfo.x, updatedInfo.y);
+      if (foothold) {
+        updatedInfo.fh = {
+          id: foothold.id,
+          x1: foothold.x1,
+          x2: foothold.x2,
+          y1: foothold.y1,
+          y2: foothold.y2,
+          group: foothold.group,
+          layer: foothold.layer
+        };
+      } else {
+        updatedInfo.fh = null;
+      }
+    }
+    
+    // Update player info
+    player.info = updatedInfo;
+    player.lastUpdate = Date.now();
+    
+    // Broadcast update to all players in the same map
+    const updateMessage = {
+      type: 'player_update',
+      player: {
+        id: playerId,
+        ...updatedInfo
+      }
+    };
+    
+    // Send to all players in the same map
+    for (const [otherId, otherPlayer] of players) {
+      if (otherId !== playerId && 
+          otherPlayer.info && 
+          otherPlayer.info.mapId === updatedInfo.mapId && 
+          otherPlayer.ws.readyState === WebSocket.OPEN) {
+        try {
+          otherPlayer.ws.send(JSON.stringify(updateMessage));
+        } catch (error) {
+          console.error(`Error sending update to player ${otherId}:`, error);
+        }
+      }
+    }
+  } catch (error) {
+    console.error(`Error handling player update for ${playerId}:`, error);
   }
-  
-  // Save updated info
-  player.info = updatedInfo;
-  player.lastUpdate = Date.now();
 }
 
 // Handle monster damage
@@ -429,6 +436,27 @@ setInterval(() => {
     }
   });
 }, pingInterval);
+
+// Add periodic cleanup of disconnected players
+setInterval(() => {
+  const now = Date.now();
+  const timeout = 30000; // 30 seconds
+  
+  for (const [id, player] of players) {
+    if (now - player.lastUpdate > timeout) {
+      console.log(`Removing inactive player: ${id}`);
+      players.delete(id);
+      
+      // Notify other players in the same map
+      if (player.info) {
+        broadcastToMap(player.info.mapId, {
+          type: 'player_left',
+          id: id
+        });
+      }
+    }
+  }
+}, 10000); // Check every 10 seconds
 
 // Start the server
 const PORT = process.env.PORT || 3001;
